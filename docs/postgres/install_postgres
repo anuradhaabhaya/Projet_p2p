@@ -48,6 +48,7 @@ projet_p2p=>
 
 Installer la librairie Postgres/C
 sudo apt-get install libpq-dev
+Apres il faut compiler avec -lpq
 
 http://www.linuxjournal.com/content/accessing-postgresql-cc
 

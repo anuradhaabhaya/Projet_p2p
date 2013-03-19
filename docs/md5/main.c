@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-
+/* A compiler avec -lcrypto */
 static void print_as_hex (const unsigned char *digest, int len) {
   int i;
   for(i = 0; i < len; i++){
