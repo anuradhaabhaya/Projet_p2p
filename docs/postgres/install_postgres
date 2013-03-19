@@ -1,0 +1,63 @@
+http://doc.ubuntu-fr.org/postgresql
+
+Installer postgresql
+$ sudo apt-get install postgresql
+
+Se connecter en tant que postgres sur psql : 
+$ sudo su postgres 
+
+Lancer postgres : 
+$ psql
+
+Rappel commandes postgres :
+\h pour l'aide-mémoire des commandes SQL
+\? pour l'aide-mémoire des commandes psql
+\g ou point-virgule en fin d'instruction pour exécuter la requête
+\q pour quitter
+
+Ajout d'un utilisateur admin:
+CREATE USER admin;
+ALTER ROLE admin WITH CREATEDB;
+CREATE DATABASE projet_p2p OWNER admin;
+ALTER USER admin WITH ENCRYPTED PASSWORD 'projet2013_RX';
+
+L'utilisateur admin doit exister :
+useradd admin
+passwd admin
+
+$ sudo useradd admin
+$ sudo passwd admin
+Enter new UNIX password: 
+Retype new UNIX password: 
+passwd: password updated successfully
+
+Editer le fichier /etc/passwd à la ligne admin pour spécifier le shell par défaut : /bin/bash
+admin:x:1001:1001::/home/admin:/bin/bash
+
+$ sudo su admin
+$ whoami
+admin
+
+$ psql projet_p2p
+psql (9.1.8)
+Type "help" for help.
+
+projet_p2p=> \dt
+No relations found.
+projet_p2p=> 
+
+Installer la librairie Postgres/C
+sudo apt-get install libpq-dev
+
+http://www.linuxjournal.com/content/accessing-postgresql-cc
+
+Pour pouvoir se connecter :
+/etc/postgresql/9.1/main/postgresql.conf : décommenter #listen_address .. 
+
+Puis modifier :  sudo vi pg_hba.conf 
+
+# "local" is for Unix domain socket connections only
+# avant on avait : method = peer (j'ai mis md5)
+local   all             all                                     md5
+
+sudo /etc/init.d/postgresql restart

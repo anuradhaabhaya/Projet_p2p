@@ -1,0 +1,231 @@
+--------------------------
+ Utilisation des sockets |
+--------------------------
+
+
+Les sockets permettent la programmation à travers le réseau.
+
+Les sockets sont représentés par des ENTIERS : comme les descripteurs de fichiers
+
+On peut leur appliquer les appels systèmes usuels comme read(), write(), close() 
+mais il y'a des primitives specifiques aux sockets que nous allons voir
+
+Terme socket = prise, " se brancher au réseau " ? 
+
+
+
+
+1. Création d'une socket 
+--------------------------
+
+Pour créer une socket on utilise l'appel système socket() défini dans 
+<sys/socket.h> :
+
+	int socket(int domain, int type, int protocole); 
+
+* Le premier argument sera toujours le même pour nous et nous utiliserons 
+  principalement la constante AF_INET, il regroupe toutes les communications
+  réseaux basées sur IP.
+
+* Le deuxième argument spécifie le type de la socket : 
+    SOCK_STREAM      mode connecté (TCP) 
+    SOCK_DGRAM       mode non-connecté (UDP)
+
+* Si le dernier argument est mis à 0, les combinaisons suivantes seront 
+  automatiquement réalisées :
+    TCP/IP           AF_INET, SOCK_STREAM
+    UDP/IP           AF_INET, SOCK_DGRAM
+
+------------------------------------------
+On résume :                              |
+ domain   = AF_INET                      |
+ type     = SOCK_STREAM ou SOCK_DGRAM    |
+ protocol = 0                            |
+-----------------------------------------
+
+Ce qui donne : (ne pas oublier <sys/socket.h>
+int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+int sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+Le descripteur des fichier est plus grand ou égal à 0, en cas d'erreur, 
+la valeur retournée est : -1.
+
+
+
+
+2. Petit bilan avant de paramétrer notre socket
+-------------------------------------------------
+
+La création de la socket ne fait que réserver un emplacement dans 
+la table des descripteurs (un peu comme si on faisait un open). Au retour
+de cette routine socket(), nous disposons d'un ENTIER qui nous permet de
+distinguer la socket mais aucun dialogue réseau n'a pris place. On a juste
+obtenu un emplacement dans la table des sockets. 
+
+
+
+
+3. Identification de notre socket 
+-----------------------------------
+
+Avant de pouvoir l'utiliser, nous devons définir/identifier de manière claire
+l'adresse complète de notre extrémité de communication.
+
+Cette phase d'identification est nécéssaire pour les programmes qui 
+sont joints par d'autres programmes (Un serveur) 
+
+Pour les sockets basées sur IP, l'identité d'une socket contient :
+  - L'adresse IP de la machine 
+  - Le port 
+
+Pour stocker l'adresse complète d'une socket : structure sockaddr
+Définie elle aussi dans <sys/socket.h>
+
+Dans les pages man on trouve sockaddr partout mais pour indiquer 
+véritablement l'identité d'une socket on devra utiliser une 
+structure dépendante de la famille de communication 
+
+Pour les protocoles AF_INET (basés sur IP, comme on l'a vu en 1),
+on n'utilisera pas la structure sockaddr mais la structure sockaddr_in
+On devra donc faire un cast en struct sockaddr comme on va le voir après 
+
+Comme on travaille sur la famille AF_INET (IP), on utilisera sockaddr_in 
+définie dans <netinet/in.h>
+
+Il faut donc remplir la structure sockaddr_in : 
+  - Mettre toute la structure à 0 (memset)
+  - sin_family = AF_INET
+  - sin_port = htons(numero_de_port):
+  - sin_addr.s_addr = htonl(INADDR_ANY)
+
+Le numéro fictif INADDR_ANY signifie que la socket peut-être associée
+à n'importe quelle adresse IP de la machine locale 
+
+
+
+
+4. Affecter l'identité à notre socket
+-------------------------------------
+
+En 1, on a vu comment obtenir un descripteur de fichier pour notre socket
+En 3, comment déclarer une identité 
+
+Nous allons maintenant voir comment lier cette identité à notre descripteur
+de fichier 
+
+Pour cela : 
+	int bind (int sock, struct sockaddr * adresse, socklen_t longueur);
+
+Avec : 
+  int sock 
+      le descripteur de fichier obtenu après l'appel à socket()
+  
+  struct sockaddr * adresse 
+      l'identité que nous venons de définir dans une structure sockaddr_in 
+      que nous devrons caster en (sockaddr *)
+
+  socklen_t la taille de la structure adresse, obtenue avec un sizeof()
+
+
+Ce qui donne : 
+bind (sock_fd, (struct sockaddr *) & adresse, sizeof (struct sockaddr_in));
+
+
+
+5. Mode connecté et non connecté
+--------------------------------
+
+Suivant le mode de communication, on ne va pas dialoguer de la même manière
+
+mode non connecté    sendto et recvfrom
+mode connecté        send   et recv
+
+
+
+
+6. Attente de connexions (Cas d'un serveur)
+------------------------------------------
+
+On utilise l'appel listen(int sock_fd, int nombre_de_connexions)
+
+Si le serveur reçoit une demande de connexion et qu'il est occupé, cette
+demande est mise dans une file d'attente. Si la file est pleine alors les 
+prochaines demandes seront rejetées.
+
+Cet appel systeme permet uniquement de dimensionner la file d'attente.  
+
+
+
+
+7. Ecouter les connexions (Cas d'un serveur)
+--------------------------------------------
+
+On utilise l'appel accept :
+	int accept(int socket,struct sockaddr * addr,int * addrlen)
+
+ou addr est un tampon contenant l'adresse de l'appellant.
+
+
+/!\ Point subtil 
+Imaginons un serveur FTP qui communique avec plusieurs clients,
+le serveur a installé sa socket sur le port 21. Les clients se
+connectent mais il est hors de question de monopiliser cette 
+socket pour tous les échanges entre les clients
+
+Un correspondant contacte notre serveur sur ce port et la connexion s'établit.
+Néanmoins, il est hors de question de bloquer ce port pour transférer toutes 
+les données que notre correspondant désire, car aucun autre client ne pourrait
+nous contacter pendant ce temps.
+
+L'idée est donc, une fois que l'on a une connexion, d'ouvrir une nouvelle
+socket pour communiquer avec 
+
+La nouvelle socket créée est renvoyée par accept( ). Le processus emploiera
+donc celle-ci pour toute la communication ultérieure.
+
+
+L'idée c'est lorsque accept est terminée, on a notre nouvelle socket, 
+on crée un processus fils qui va gérer la communication et le pere retournera 
+en attente sur la nouvelle connexion
+
+
+
+
+
+8. Connexion (Cas du client)
+---------------------------
+
+int connect(int sockfd, const struct sockaddr *addr,
+                   socklen_t addrlen);
+
+
+9. Fermer une socket
+--------------------
+
+close(fd);
+
+
+
+10. Resume  
+-----------
+
+serveur : SOCKET -> BIND -> LISTEN -> ACCEPT 
+cilent  : SOCKET  
+ - Create socket                     (socket) <sys/socket.h>
+ - Bind configuration to descriptor  (bind)   <netinet/in.h>
+ - Set up listening mode             (listen)
+ - accept connections                (accept)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
